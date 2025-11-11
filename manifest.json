@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Finger Bite",
+  "version": "0.1",
+  "description": "Detects and controls browser fingerprinting attempts",
+  "permissions": ["storage", "activeTab"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["dist/content.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

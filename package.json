@@ -1,0 +1,14 @@
+{
+  "name": "finger-bite",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch --preserveWatchOutput"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.27",
+    "typescript": "^5.9.3"
+  }
+}
