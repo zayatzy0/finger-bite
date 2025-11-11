@@ -6,3 +6,7 @@ dist/
 
 # OS
 .DS_Store
+
+#Private reference
+GIT_REF.md
+PROJECT_PLAN.md
