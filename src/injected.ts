@@ -3,14 +3,17 @@
 // ============================================================================
 
 interface CanvasMetadata {
-    id: string;                     // unique id
+    id: string;                     // seqential id
     createdAt: number;              // tracking start timestamp
-    inDOM: boolean;                 // canvas rendered in DOM
-    visible: boolean;               // canvas visible to user
-    extracted: boolean;             // toDataURL called
+    hadContext: boolean;            // .getContext called
+    wasInDOM: boolean;              // Canvas placed in DOM
+    wasVisible: boolean;            // Canvas was ever visible to user
+    wasExtracted: boolean;          // .toDataURL | .getImageData | .toBlob() called
     extractedAt: number | null;     // extraction timestamp
-    operations: DrawOperation[];    // drawing operations performed
-    susScore: number;               // total suspicion of canvas operation
+    drawOpsEntropic: DrawOperation[];       // entropic drawing operations performed
+    numDrawOps: number;             // total number of drawing operations performed
+    hasSusText: boolean;            // contains suspicious text
+    susScore: number;               // total suspicion of canvas lifecycle
 };
 
 interface DrawOperation {
@@ -24,39 +27,80 @@ interface DrawOperation {
 // CONSTANTS & CONFIGURATION
 // ============================================================================
 
-const SUS_VALS = {
-    CANVAS_NOT_IN_DOM: 5,           // canvas not rendered in DOM
-    CANVAS_NOT_VISIBLE: 4,          // canvas not visible
-    CANVAS_QUICK_EXTRACT: 3,        // canvas extracted within 100ms of canvas creation
-    CANVAS_FEW_OPS: 2,              // canvas uses less than 3 drawing ops
-    CANVAS_SUS_TEXT: 3,             // canvas prompt includes common fingerprinting test str
-    CANVAS_DETECT_THRESHOLD: 7,     // score needed to flag canvas call as likely fingerprinting attempt
+const CANVAS_SUS_VALS = {
+    NO_CONTEXT: 5,              // never placed into Context           
+    NEVER_IN_DOM: 5,            // never placed in DOM
+    NEVER_VISIBLE: 4,           // never visible to user
+    QUICK_EXTRACT: 3,           // extracted within 100ms of creation
+    FEW_DRAW_OPS: 2,            // less than 3 drawing ops
+    CONTAINS_SUS_TEXT: 3,       // canvas prompt includes common fingerprinting test str
+    DETECTION_THRESHOLD: 7,     // score needed to flag canvas call as possible fingerprinting attempt
+    FLAG_THRESHOLD: 10,
 } as const;
 
 const CANVAS_SUS_TEXT_PATTERNS: string[] = [
     // from FingerprintJS and similar libraries
-    'cwm', 'fjordbank', 
-    'glyph', 'vext', 'quiz',
+    'cwm', 
+    'fjord', 
+    'glyph', 
+    'vext', 
+    'quiz',
 
-    // canvas font testing string
+    // Canvas font testing string
     'mmmmmmmmmmlli',                // test font width/kerning
+    'mmmmmmm',
+    'iiiiiii',
 
     // unicode and emoji test patterns
     'ðŸ˜ðŸ˜‚ðŸ˜ƒ',                  // emoji rendering test
     'â˜ºâ™«â™ª',                    // special character test
+    `${/[\p{Emoji}].*[\p{Emoji}]/u}`,
 
     //foreign languages
     'é…·çƒˆãªæ—¥æœ¬èªž',            // Chinese/Japanese chars
     'Ø§Ù„Ø¹Ø±Ø¨ÙŠØ©',               // Arabic
+
+    // very long
+    `${/.{100,}/}`
 ] as const;
 
 
-const CANVAS_2D_DRAWING_METHODS: string[] = [
-    'fillText', 'strokeText', 'fillRect', 'strokeRect',
-]
+const CANVAS_DRAW_OPS_ENTROPIC: string[] = [
+    // text rendering (PRIMARY fingerprinting vector)
+    'fillText',
+    'strokeText',
+    'measureText',
+    
+    // complex paths (minor but real entropy source)
+    'bezierCurveTo',
+    'quadraticCurveTo',
+    'arcTo',
+    'ellipse',
+    
+    // gradients (color interpolation varies)
+    'createLinearGradient',
+    'createRadialGradient',
+    'createConicGradient'
+] as const;
+
+const CANVAS_DRAW_OPS_GENERIC: string[] = [
+    'fillRect',
+    'strokeRect',
+    'clearRect',
+    'rect',
+    'arc',          
+    'drawImage',
+    'putImageData',
+    'beginPath',
+    'closePath',
+    'moveTo',
+    'lineTo',
+    'fill',
+    'stroke'
+] as const;
 
 // original API methods called
-const originalAPIs = {
+const ORIGINAL_APIS = {
     getContext: HTMLCanvasElement.prototype.getContext,
     toDataURL: HTMLCanvasElement.prototype.toDataURL,
     getImageData: CanvasRenderingContext2D.prototype.getImageData,
@@ -81,19 +125,22 @@ const canvasTracker: Map<HTMLCanvasElement, CanvasMetadata> =
 // ============================================================================
 
 /**
- * Formats CanvasMetadata for logging
- * @param medatada 
- * @returns object
+ * Formats CanvasMetadata for logging.
+ * 
+ * @param medatada CanvasMetadata
+ * @returns object: console log format for metadata
  */
 function formatCanvasMetadataLog(medatada: CanvasMetadata): object {
     return {
-        canvasId: medatada.id,
-        score: medatada.susScore,
-        inDom: medatada.inDOM,
-        visible: medatada.visible,
-        numOperations: medatada.operations.length,
-        extracted: medatada.extracted,
-        extractionTime: medatada.extractedAt ? 
+        canvas_id: medatada.id,
+        suspicion_score: medatada.susScore,
+        had_context: medatada.hadContext,
+        was_ever_in_DOM: medatada.wasInDOM,
+        was_ever_visible: medatada.wasVisible,
+        num_draw_ops: medatada.drawOpsEntropic.length,
+        contains_suspicious_text: medatada.hasSusText,
+        was_extracted: medatada.wasExtracted,
+        extraction_time: medatada.extractedAt ? 
             `${medatada.extractedAt - medatada.createdAt}ms`
             : 'N/A',
     };
@@ -105,9 +152,9 @@ function formatCanvasMetadataLog(medatada: CanvasMetadata): object {
 // ============================================================================
 
 /**
- * Generates a unique sequential ID for tracking canvas elements
- * Example: canvas_001, canvas_002, etc
- * @returns canvas id string
+ * Generates a unique sequential ID for tracking canvas elements.
+ * 
+ * @returns string: "canvas_00X"
  */
 function generateCanvasId(): string {
     const paddedId: string = String(++canvasIdCounter).padStart(3, '0');
@@ -115,28 +162,30 @@ function generateCanvasId(): string {
 };
 
 /**
- * Returns true if canvas rendered in DOM, false otherwise
- * @param canvas 
- * @returns bool - true if rendered in DOM
+ * Checks if Canvas in DOM.
+ * 
+ * @param canvas HTMLCanvasElement
+ * @returns boolean: true if canvas in DOM
  */
 function isCanvasInDOM(canvas: HTMLCanvasElement): boolean {
     return document.contains(canvas);
 };
 
 /**
- * Returns true if canvas rendered visibly in DOM
- * Visibility criteria considered: 
+ * Checks Canvas visibility.
+ * Criteria considered: 
  * - canvas dimensions >= 10 pixels
  * - canvas CSS styling not hiding canvas
  * - canvas not placed at extreme page offset
- * @param canvas 
- * @returns bool - true is rendered visibly in DOM
+ * 
+ * @param canvas HTMLCanvasElement
+ * @returns boolean: true if canvas visible
  */
 function isCanvasVisible(canvas: HTMLCanvasElement): boolean {
     if (!isCanvasInDOM(canvas)) return false;
 
-    const rectDim: DOMRect = canvas.getBoundingClientRect();         // rectangle dimensions
-    const style: CSSStyleDeclaration = window.getComputedStyle(canvas);          // computed CSS
+    const rectDim: DOMRect = canvas.getBoundingClientRect();                // rectangle dimensions
+    const style: CSSStyleDeclaration = window.getComputedStyle(canvas);     // computed CSS
 
     // canvas dimensions visible
     const visSize: number = 10;
@@ -169,14 +218,15 @@ function isCanvasVisible(canvas: HTMLCanvasElement): boolean {
 };
 
 /**
- * Returns true if canvas contains common suspicious fingerpringing patterns
- * @param text 
- * @returns bool - true if contains suspicious patterns
+ * Returns true if canvas contains common suspicious fingerpringing text patterns.
+ * 
+ * @param text string: argument to text-based drawing operation
+ * @returns boolean: true if text contains suspicious patterns
  */
 function canvasContainsSusStr(text: string): boolean {
     const lowText: string = text.toLowerCase();
     return CANVAS_SUS_TEXT_PATTERNS.some(pattern => lowText.includes(pattern));
-};
+}
 
 
 // ============================================================================
@@ -184,54 +234,52 @@ function canvasContainsSusStr(text: string): boolean {
 // ============================================================================
 
 /**
- * Initializes CanvasMetadata for newly captured canvas
- * @param canvas 
- * @returns CanvasMetadata object
+ * Initializes CanvasMetadata for HTMLCanvasElement and maps former to latter 
+ * in canvasTracker.
+ * 
+ * @param canvas HTMLCanvasElement
+ * @returns CanvasMetadata
  */
 function initCanvas(canvas: HTMLCanvasElement): CanvasMetadata {
     const metadata: CanvasMetadata = {
         id: generateCanvasId(),
         createdAt: Date.now(),
-        inDOM: isCanvasInDOM(canvas),
-        visible: isCanvasVisible(canvas),
-        extracted: false,
+        wasInDOM: isCanvasInDOM(canvas),
+        wasVisible: isCanvasVisible(canvas),
+        wasExtracted: false,
         extractedAt: null,
-        operations: [],
+        drawOpsEntropic: [],
         susScore: 0,
-    };
+        hadContext: false,
+        numDrawOps: 0,
+        hasSusText: false,
+    }
+    
+    canvasTracker.set(canvas, metadata);
+    console.log('~ FingerBite -> 🔵 Canvas tracked: ', metadata.id);
+
     return metadata;
 };
 
 /**
- * Calls to initialize then tracks newly captured canvas in canvasTracker
- * @param canvas 
- * @returns CanvasMetadata object
+ * Update Canvas visibility flags.
+ * Updates: metadata.wasInDOM, metadata.wasVisible
+ * 
+ * @param canvas HTMLCanvasElement
+ * @returns CanvasMetadata
  */
-function trackCanvas(canvas: HTMLCanvasElement): CanvasMetadata {
-    const metadata: CanvasMetadata = initCanvas(canvas);
-
-    canvasTracker.set(canvas, metadata);
-    console.log('~ FingerBite -> 🔵 Canvas tracked: ', metadata.id, {
-        inDOM: metadata.inDOM,
-        visible: metadata.visible,
-    });
-    return metadata;
-};
-
-function updateCanvas(canvas: HTMLCanvasElement): void {
-    const metadata: CanvasMetadata | undefined = canvasTracker.get(canvas);
+function updateCanvas(canvas: HTMLCanvasElement): CanvasMetadata {
+    let metadata: CanvasMetadata | undefined = canvasTracker.get(canvas);
     if (!metadata) {
-        console.warn('~ FingerBite -> 🟡 Attempted to update untracked canvas');
-        return;
-    };
+        metadata = initCanvas(canvas); 
+        return metadata;
+    }
 
-    metadata.inDOM = isCanvasInDOM(canvas);
-    metadata.visible = isCanvasVisible(canvas);
-    console.log('~ FingerBite -> 🔵 Canvas updated: ', metadata.id, {
-        inDOM: metadata.inDOM,
-        visible: metadata.visible,
-    });
-};
+    if (!metadata.wasInDOM) metadata.wasInDOM = isCanvasInDOM(canvas);
+    if (!metadata.wasVisible) metadata.wasVisible = isCanvasVisible(canvas);
+
+    return metadata;
+}
 
 
 // ============================================================================
@@ -244,24 +292,24 @@ function updateCanvas(canvas: HTMLCanvasElement): void {
  * @param canvas 
  * @returns number - canvas suspicion score, also updates canvas medatada
  */
-function getCanvasSusScore(canvas: HTMLCanvasElement): number {
+function scoreCanvas(canvas: HTMLCanvasElement): number {
     let score: number = 0;
     const metadata: CanvasMetadata | undefined = canvasTracker.get(canvas);
+    updateCanvas(canvas);
     const reasons: string[] = [];
 
-    if (!metadata) return score;
-    if (!metadata.extracted) return score;
+    if (!metadata || !metadata.wasExtracted) return score;
 
     // extracted + not rendered
-    if (!metadata.inDOM) {
-        score += SUS_VALS.CANVAS_NOT_VISIBLE;
-        reasons.push('Canvas not in DOM');
+    if (!metadata.wasInDOM) {
+        score += CANVAS_SUS_VALS.NEVER_VISIBLE;
+        reasons.push('Canvas never in DOM');
     };
 
     // extracted + not visible
-    if (!metadata.visible) {
-        score += SUS_VALS.CANVAS_NOT_VISIBLE;
-        reasons.push('Canvas not visible');
+    if (!metadata.wasVisible) {
+        score += CANVAS_SUS_VALS.NEVER_VISIBLE;
+        reasons.push('Canvas never visible');
     };
 
     // extracted fast
@@ -270,105 +318,100 @@ function getCanvasSusScore(canvas: HTMLCanvasElement): number {
         const timeThreshold: number = 100;
 
         if (timeToExtract < timeThreshold) {
-            score += SUS_VALS.CANVAS_QUICK_EXTRACT;
+            score += CANVAS_SUS_VALS.QUICK_EXTRACT;
             reasons.push(`Canvas quick extract (${timeToExtract}ms)`);
         };
     };
 
     // num drawing ops
-    const numOpsThreshold: number = 3;
-    const opLength: number = metadata.operations.length;
-    if (opLength < numOpsThreshold) {
-        score += SUS_VALS.CANVAS_FEW_OPS;
-        reasons.push(`Canvas few operations (${opLength})`);
+    const numDrawOpsThreshold: number = 3;
+    if (metadata.numDrawOps < numDrawOpsThreshold) {
+        score += CANVAS_SUS_VALS.FEW_DRAW_OPS;
+        reasons.push(`Canvas few operations (${metadata.numDrawOps})`);
     };
 
     // check for sus text in drawing ops
-    if (opLength > 0) {
-        // array of text based drawing operations
-        const textOps: DrawOperation[] = metadata.operations.filter(op =>
-            op.method.toLowerCase().includes('text') && op.args[0]
-        );
-
-        // determine if drawing text prompts contain sus text
-        const hasSusText = textOps.some(op => {
-            const text = String(op.args[0]);
-            return canvasContainsSusStr(text);
-        });
-
-        if (hasSusText) {
-            score += SUS_VALS.CANVAS_SUS_TEXT;
-            reasons.push('Canvas contains suspicious text strings')
-        }
+    if (metadata.hasSusText) {
+        score += CANVAS_SUS_VALS.CONTAINS_SUS_TEXT;
+        reasons.push('Canvas contains suspicious text strings')
     }
 
-    if (reasons.length > 0) {
-        console.warn(`~ FingerBite -> 🟠 Canvas flagged: ${metadata.id}: suspicious behaviors detected: `, reasons);
+    metadata.susScore = score;
+
+    const pad: string = '~~~~~~~~~~~~ -> ' + metadata.id + ':';
+
+    console.log(`~ FingerBite -> Canvas: ${metadata.id}`);
+    console.log(pad, 'Status:', formatCanvasMetadataLog(metadata));
+    
+    if (score >= CANVAS_SUS_VALS.FLAG_THRESHOLD) {
+        console.log(pad, '🔴 LIKELY FINGERPRINTING DETECTED');
+    } else if (score >= CANVAS_SUS_VALS.DETECTION_THRESHOLD) {
+        console.log(pad, '🟠 Possible fingerprinting detected');
+    } else {
+        console.log(pad, '🟢 Unlikely to be fingerprinting');
     };
+    if (reasons.length > 0) {
+        console.log(pad, 'Suspicious behaviors detected:', reasons);    
+    }
+
     return score;
 }
 
-/**
- * Updates canvas suspicion score, flags if above threshold
- * @param canvas 
- * @return bool - true if canvas suspicion above threshold
- */
-function updateCanvasSusScore(canvas: HTMLCanvasElement): boolean {
-    const metadata: CanvasMetadata | undefined = canvasTracker.get(canvas);
-    const score: number = getCanvasSusScore(canvas);
-
-    if (!metadata) return false;
-    metadata.susScore = score; 
-
-    console.log(`\n~ FingerBite -> Canvas: ${metadata.id}`);
-    console.log('\t~ FingerBite -> Status:', formatCanvasMetadataLog(metadata));
-
-    if (metadata.susScore >= SUS_VALS.CANVAS_DETECT_THRESHOLD) {
-        console.log('\t~ FingerBite -> 🔴 FINGERPRINTING DETECTED');
-    } else if (metadata.susScore > 0) {
-        console.log('\t~ FingerBite -> 🟠 Flagged as possible fingerprinting attempt');
-    } else {
-        console.log('\t~ FingerBite -> 🔵 Appears legitimate');
-    };
-
-    return true;
-};
 
 // ============================================================================
 // DRAWING OPERATION INTERCEPTION
 // ============================================================================
 
 /**
- * Intercepts canvas 2D context drawing methods
+ * Intercepts canvas 2D context drawing methods.
+ * Intercepts draw method call -> if entropic method -> push call to metadata.drawOps
+ * Updates: metadate.numDrawOps, metadata.numDrawOpsEntropic, metadata.hasSusText
  * @param ctx 
  * @returns void
  */
-function interceptDrawingOps(ctx: CanvasRenderingContext2D): void {
-    const canvas = ctx.canvas;
-    const metadata = canvasTracker.get(canvas);
+function interceptDrawingOps(
+    ctx: CanvasRenderingContext2D, 
+    metadata: CanvasMetadata): void {
 
-    if (!metadata) {
-        console.warn('~ FingerBite -> 🟡 Attempted to intercept drawing operations for untracked canvas');
-        return;
-    };
-
-    CANVAS_2D_DRAWING_METHODS.forEach(methodName => {
-        const original = (ctx as any)[methodName];
+    CANVAS_DRAW_OPS_ENTROPIC.forEach(method => {
+        const original = (ctx as any)[method];
         if (!original) return;
 
         // replace with interceptor
-        (ctx as any)[methodName] = function(...args: any[]) {
+        (ctx as any)[method] = function(...args: any[]) {
+            
+            metadata.numDrawOps++;  // increment drawOps counter
+
+            if (method.includes('Text')) {
+                const text: string = String(args[0])
+                if (canvasContainsSusStr(text)) metadata.hasSusText = true; // check contains suspicious text
+            } 
+
             // intercept operations
-            metadata.operations.push({
-                method: methodName,
+            metadata.drawOpsEntropic.push({
+                method: method,
                 args: args,
                 timestamp: Date.now(),
             });
+            
             // actually perform drawing operations
             return original.apply(this, args);
-        };
+        }
     });
-};
+
+    CANVAS_DRAW_OPS_GENERIC.forEach(method => {
+        const original = (ctx as any)[method];
+        if (!original) return;
+
+        // replace with interceptor
+        (ctx as any)[method] = function(...args: any[]) {
+            metadata.numDrawOps++;  // increment drawOps counter
+
+            // actually perform drawing operations
+            return original.apply(this, args);
+        }
+    });
+}
 
 
 // ============================================================================
@@ -386,20 +429,20 @@ function interceptGetContext(): void {
         contextId: string, 
         options?: any
     ): any {
-        console.log('~ FingerBite -> 🔵 getContext called:', contextId);
 
         // get or create canvas metadata
         let metadata = canvasTracker.get(this);
         if (!metadata) {
-            metadata = trackCanvas(this);
+            metadata = initCanvas(this);
         }
+        metadata.hadContext = true;
         
         // call original method to get actual context
-        const context = originalAPIs.getContext.call(this, contextId, options);
+        const context = ORIGINAL_APIS.getContext.call(this, contextId, options);
 
-        // if 2D context creates, intercept drawing ops
+        // if 2D context created, intercept drawing ops
         if (context && contextId == '2d') {
-            interceptDrawingOps(context as CanvasRenderingContext2D);
+            interceptDrawingOps(context as CanvasRenderingContext2D, metadata);
         };
         
         return context;
@@ -420,19 +463,18 @@ function interceptToDataURL(): void {
         // get or create metadata
         let metadata = canvasTracker.get(this);
         if (!metadata) {
-            metadata = trackCanvas(this);
+            metadata = initCanvas(this);
         }
 
         // update canvas extraction status
-        metadata.extracted = true;
+        metadata.wasExtracted = true;
         metadata.extractedAt = Date.now();
         updateCanvas(this);
 
-        console.warn('~ FingerBite -> 🔴 toDataURL CALLED', formatCanvasMetadataLog(metadata));
-        updateCanvasSusScore(this);
+        scoreCanvas(this);
         
         // call original method to return actual data
-        return originalAPIs.toDataURL.call(this, type, quality);
+        return ORIGINAL_APIS.toDataURL.call(this, type, quality);
     };
 };
 
@@ -448,14 +490,22 @@ function interceptGetImageData(): void {
         sh: number,
         settings?: ImageDataSettings
     ): ImageData {
-        console.warn('~ FingerBite -> 🔴 getImageData called - possible fingerprinting', {
-            region: `${sx},${sy} ${sw}x${sh}`
-        });
         
-        //TODO: ADD FULL TRACKING
+        // get or create metadata
+        let metadata = canvasTracker.get(this.canvas);
+        if (!metadata) {
+            metadata = initCanvas(this.canvas);
+        }
+
+        // update canvas extraction status
+        metadata.wasExtracted = true;
+        metadata.extractedAt = Date.now();
+        updateCanvas(this.canvas);
+
+        scoreCanvas(this.canvas);
 
         // call original method to return actual data
-        return originalAPIs.getImageData.call(this, sx, sy, sw, sh, settings);
+        return ORIGINAL_APIS.getImageData.call(this, sx, sy, sw, sh, settings);
     };
 };
 
@@ -469,11 +519,21 @@ function interceptToBlob(): void {
         type?: string,
         quality?: any
     ): void {
-        console.warn('~ FingerBite -> 🔴 toBlob called - possible fingerprinting');
 
-        //TODO: ADD FULL TRACKING
+        // get or create metadata
+        let metadata = canvasTracker.get(this);
+        if (!metadata) {
+            metadata = initCanvas(this);
+        }
 
-        return originalAPIs.toBlob.call(this, callback, type, quality);
+        // update canvas extraction status
+        metadata.wasExtracted = true;
+        metadata.extractedAt = Date.now();
+        updateCanvas(this);
+
+        scoreCanvas(this);
+
+        return ORIGINAL_APIS.toBlob.call(this, callback, type, quality);
     };
 };
 
@@ -497,27 +557,6 @@ function initialize(): void {
     interceptToDataURL();
     interceptGetImageData();
     interceptToBlob();
-    /*
-    setTimeout(() => {
-        console.log('~ FingerBite -> 🔵 Detection threshold:', SUS_VALS.CANVAS_DETECT_THRESHOLD, 'points');
-        console.log('~ FingerBite -> 🔵 Total Canvases tracked:', canvasTracker.size);
-
-        canvasTracker.forEach((metadata, canvas) => {
-            updateCanvasSusScore(canvas);
-
-            console.log(`\n~ FingerBite -> Canvas: ${metadata.id}`);
-            console.log('\t~ FingerBite -> Status:', formatCanvasMetadataLog(metadata));
-
-            if (metadata.susScore >= SUS_VALS.CANVAS_DETECT_THRESHOLD) {
-                console.log('\t~ FingerBite -> 🔴 FINGERPRINTING DETECTED');
-            } else if (metadata.susScore > 0) {
-                console.log('\t~ FingerBite -> 🟠 Flagged as possible fingerprinting attempt');
-            } else {
-                console.log('\t~ FingerBite -> 🔵 Appears legitimate');
-            }
-        })
-    }, 2000);
-    */
 };
 
 initialize();
