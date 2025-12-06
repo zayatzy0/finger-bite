@@ -15,7 +15,7 @@ Detection results appear in the browser console with color-coded warnings:
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/fingerbite.git
+   git clone https://github.com/zayatzy0/fingerbite.git
    cd fingerbite
    ```
 
