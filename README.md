@@ -1,154 +1,80 @@
-# Fingerprint Detector
+# FingerBite
 
-A browser extension that detects canvas fingerprinting attempts in real-time and gives users control over how to respond.
+Real-time canvas fingerprinting detection for Chromium browsers.
 
-## What Makes This Novel
+## What It Does
 
-Unlike existing anti-fingerprinting extensions that either block everything (breaking websites) or randomize blindly (potentially making you more unique), this extension:
+FingerBite detects when websites attempt to fingerprint your browser using Canvas elements. It tracks Canvas lifecycle behavior (visibility, drawing operations, extraction timing, network transmission) and scores each Canvas for likelihood of fingerprinting.
 
-- **Detects fingerprinting attempts** using behavioral heuristics
-- **Tracks where data is sent** (third-party trackers vs. internal security)
-- **Gives users control** - allow legitimate uses, block invasive tracking
-- **Preserves functionality** - only intervenes when actual fingerprinting is detected
+Detection results appear in the browser console with color-coded warnings:
+- 🟢 **Unlikely** (0-6 points): Legitimate Canvas use
+- 🟠 **Possible** (7-9 points): Suspicious behavior
+- 🔴 **Likely** (10+ points): Probable fingerprinting attempt
 
-## Current Features (v0.1 - MVP)
+## Installation
 
-✅ Canvas API interception in page context  
-✅ Real-time detection of `toDataURL()` calls  
-✅ Console logging of suspicious canvas activity  
-⚠️ User notification UI (in progress)  
-⚠️ Network activity tracking (planned)  
-⚠️ User preference storage (planned)  
-
-## Planned Features
-
-**Phase 1 (Current):**
-- Canvas lifecycle tracking
-- Behavioral suspicion scoring
-- Detection of fingerprinting patterns vs. legitimate use
-
-**Phase 2:**
-- Network activity monitoring
-- Correlation between canvas extraction and data transmission
-- User notification popup
-
-**Phase 3:**
-- Per-domain user preferences (allow/randomize/block)
-- Additional fingerprinting vector detection (WebGL, fonts)
-- Comprehensive testing and accuracy metrics
-
-## Technical Implementation
-
-**Architecture:**
-- TypeScript-based Chrome extension (Manifest V3)
-- Runs in page context (`"world": "MAIN"`) to intercept Canvas APIs
-- Prototype-level interception of `toDataURL()` and `getContext()`
-
-**Key Innovation:**
-Uses `"world": "MAIN"` to inject into the page's JavaScript context before page scripts load, enabling true API interception rather than isolated content script monitoring.
-
-## Installation & Development
-
-### Prerequisites
-- Node.js (v14 or higher)
-- npm
-- Chrome/Chromium browser
-
-### Setup
-
-1. **Clone the repository:**
+1. Clone this repository:
    ```bash
-   git clone <your-repo-url>
-   cd fingerprint-detector
+   git clone https://github.com/YOUR_USERNAME/fingerbite.git
+   cd fingerbite
    ```
 
-2. **Install dependencies:**
+2. Install dependencies and build:
    ```bash
    npm install
-   ```
-
-3. **Build the extension:**
-   ```bash
    npm run build
    ```
-   
-   Or use watch mode during development:
-   ```bash
-   npm run watch
-   ```
 
-4. **Load in Chrome:**
-   - Open Chrome and navigate to `chrome://extensions/`
-   - Enable "Developer mode" (toggle in top right)
+3. Load in Chromium:
+   - Navigate to `chrome://extensions/`
+   - Enable "Developer mode"
    - Click "Load unpacked"
-   - Select the `fingerprint-detector` directory
-   - Extension should load successfully
+   - Select the `fingerbite` directory
 
-### Testing
+4. Open the browser console (F12) to see extension output.
 
-**Quick Test:**
-1. Visit https://amiunique.org
-2. Open DevTools console (F12)
-3. Look for: `🔴 toDataURL CALLED - FINGERPRINTING DETECTED!`
+## Testing
 
-**Test Sites:**
-- **Fingerprinting sites:** AmIUnique.org, BrowserLeaks.com, Pixelscan.net
-- **Legitimate canvas use:** News sites with charts, online games, data visualization sites
+Open the included `test.html` in your browser to run the test suite, or visit known fingerprinting sites like:
+- https://amiunique.org/fingerprint
+- https://fingerprint.com/
 
-### Development Workflow
+Note: `test.html` was generated for the project using Claude Sonnet 4.5.
 
-1. Edit TypeScript files in `src/`
-2. Code auto-compiles to `dist/` (if watch mode running)
-3. Reload extension at `chrome://extensions/` (click reload icon)
-4. Refresh test page to see changes
+## How It Works
 
-## Project Structure
+FingerBite injects into the page's JavaScript context (Chrome MV3 `world: MAIN`) to intercept Canvas API calls before page scripts execute. It tracks:
 
-```
-fingerprint-detector/
-├── src/
-│   └── injected.ts          # Canvas interception logic
-├── dist/                    # Compiled JavaScript (auto-generated)
-│   └── injected.js
-├── manifest.json            # Extension configuration
-├── tsconfig.json            # TypeScript configuration
-├── package.json             # Dependencies and scripts
-└── README.md
-```
+- **Creation**: Canvas element creation and context initialization
+- **Drawing**: Operations performed (especially text rendering)
+- **Extraction**: toDataURL(), getImageData(), toBlob() calls
+- **Network**: Correlation between extracted data and network requests
 
-## Research Context
+Suspicion scoring uses weighted behavioral heuristics:
+- Never in DOM (+5)
+- Never visible (+4)
+- No context (+5)
+- Quick extraction <100ms (+3)
+- Few drawing operations <3 (+2)
+- Suspicious text patterns (+3)
+- Third-party destination (+4)
+- Known tracker domain (+5)
 
-This extension is part of a security research project investigating:
-- Behavioral detection of fingerprinting vs. legitimate API use
-- Effectiveness of user-controlled privacy tools
-- The balance between privacy protection and website functionality
+## Technical Details
 
-**Research Question:**  
-*"Can behavioral heuristics reliably distinguish fingerprinting attempts from legitimate Canvas/WebGL API use, and does tracking data transmission destinations improve detection confidence?"*
+- **TypeScript** implementation
+- **Chrome Manifest V3**
+- **Injection strategy**: `world: MAIN` at `document_start`
+- **Network correlation**: Matches canvas extractions with fetch/XMLHttpRequest bodies
 
-## Contributing
+## Current Limitations
 
-This is currently an academic research project. Issues and pull requests are welcome for:
-- Bug fixes
-- Detection accuracy improvements  
-- Additional fingerprinting vector support
-- Documentation improvements
+- Detection only (no data obfuscation)
+- Canvas-specific (doesn't track WebGL, fonts, audio)
+- May flag legitimate off-screen image processing
+- Console output only (no UI yet)
+- Will miss sophisticated attempts - low hanging fruit only
 
-## Known Limitations
+## Project Status
 
-- Currently only detects canvas fingerprinting (not WebGL, fonts, etc.)
-- Console logging only (no user-facing UI yet)
-- No automatic blocking or randomization (detection only)
-- May have false positives on legitimate canvas-heavy sites
-
-## License
-
-MIT License - see LICENSE file for details
-
-## Acknowledgments
-
-Built as part of COMP 2500 (Security Principles) coursework, exploring practical applications of browser security and privacy concepts.
-
-## Contact
-
-For questions about this project, please open an issue on GitHub.
+Academic project for COMP-2500 Security Principles. Successfully detects canvas fingerprinting on live sites with low false positive rate.

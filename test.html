@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FingerBite Test Suite</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+        
+        :root {
+            --cyber-green: #00ff41;
+            --cyber-blue: #00d9ff;
+            --cyber-pink: #ff006e;
+            --cyber-purple: #8b00ff;
+            --dark-bg: #0a0e27;
+            --darker-bg: #050814;
+            --card-bg: #0f1729;
+            --border-color: #1a2847;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Share Tech Mono', monospace;
+            background: var(--darker-bg);
+            color: var(--cyber-green);
+            padding: 20px;
+            min-height: 100vh;
+            background-image: 
+                repeating-linear-gradient(0deg, transparent, transparent 2px, var(--dark-bg) 2px, var(--dark-bg) 4px);
+            line-height: 1.6;
+        }
+        
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 900;
+            font-size: 2.5em;
+            text-align: center;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, var(--cyber-green), var(--cyber-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(0, 255, 65, 0.5);
+            animation: glitch 3s infinite;
+            letter-spacing: 3px;
+        }
+        
+        @keyframes glitch {
+            0%, 100% { 
+                text-shadow: 0 0 30px rgba(0, 255, 65, 0.5);
+                transform: translate(0);
+            }
+            25% { 
+                text-shadow: 0 0 40px rgba(0, 217, 255, 0.7);
+                transform: translate(-2px, 2px);
+            }
+            75% { 
+                text-shadow: 0 0 40px rgba(255, 0, 110, 0.7);
+                transform: translate(2px, -2px);
+            }
+        }
+        
+        .console-note {
+            background: var(--card-bg);
+            border: 2px solid var(--cyber-blue);
+            padding: 15px 15px 15px 30px;
+            border-radius: 0;
+            margin: 20px auto;
+            max-width: 1200px;
+            box-shadow: 0 0 20px rgba(0, 217, 255, 0.3);
+            position: relative;
+        }
+        
+        .console-note::before {
+            content: '>';
+            position: absolute;
+            left: 10px;
+            top: 15px;
+            color: var(--cyber-blue);
+            font-size: 1.2em;
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+        
+        .console-note strong {
+            color: var(--cyber-blue);
+            font-weight: 700;
+        }
+        
+        .test-section {
+            background: var(--card-bg);
+            padding: 20px;
+            margin: 20px auto;
+            max-width: 1200px;
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--cyber-green);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .test-section:hover {
+            border-left-color: var(--cyber-blue);
+            box-shadow: 0 0 25px rgba(0, 217, 255, 0.2);
+            transform: translateX(5px);
+        }
+        
+        .test-section h2 {
+            font-family: 'Orbitron', sans-serif;
+            color: var(--cyber-green);
+            margin-bottom: 15px;
+            font-size: 1.4em;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+        
+        .test-description {
+            background: rgba(0, 255, 65, 0.05);
+            padding: 15px;
+            border-left: 3px solid var(--cyber-green);
+            margin: 10px 0;
+            font-size: 0.9em;
+            color: #a0ffc0;
+        }
+        
+        .test-description strong {
+            color: var(--cyber-blue);
+            display: block;
+            margin-top: 8px;
+        }
+        
+        .test-description em {
+            color: var(--cyber-pink);
+            font-style: normal;
+        }
+        
+        button {
+            background: linear-gradient(135deg, var(--cyber-green), #00cc35);
+            color: var(--darker-bg);
+            border: none;
+            padding: 12px 24px;
+            font-size: 14px;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            border-radius: 0;
+            cursor: pointer;
+            margin: 5px;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.2);
+            transition: left 0.3s;
+        }
+        
+        button:hover::before {
+            left: 100%;
+        }
+        
+        button:hover {
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.6);
+            transform: translateY(-2px);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button.danger {
+            background: linear-gradient(135deg, var(--cyber-pink), #cc0058);
+            color: white;
+        }
+        
+        button.danger:hover {
+            box-shadow: 0 0 20px rgba(255, 0, 110, 0.6);
+        }
+        
+        button.warning {
+            background: linear-gradient(135deg, #ffaa00, #ff8800);
+            color: var(--darker-bg);
+        }
+        
+        button.warning:hover {
+            box-shadow: 0 0 20px rgba(255, 170, 0, 0.6);
+        }
+        
+        .result {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 0;
+            background: rgba(0, 255, 65, 0.1);
+            border-left: 4px solid var(--cyber-green);
+            color: var(--cyber-green);
+            font-family: 'Share Tech Mono', monospace;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        .canvas-display {
+            border: 2px solid var(--cyber-blue);
+            margin: 10px 0;
+            display: inline-block;
+            box-shadow: 0 0 15px rgba(0, 217, 255, 0.3);
+        }
+        
+        code {
+            background: rgba(0, 255, 65, 0.1);
+            padding: 2px 8px;
+            border-radius: 0;
+            font-family: 'Share Tech Mono', monospace;
+            color: var(--cyber-blue);
+            border: 1px solid var(--border-color);
+        }
+        
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--darker-bg);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--cyber-green);
+            border-radius: 0;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--cyber-blue);
+        }
+
+        h1::after {
+            content: '_';
+            animation: blink 0.7s infinite;
+        }
+        
+        .test-section::before {
+            content: '[TEST]';
+            position: absolute;
+            top: -10px;
+            right: 20px;
+            background: var(--darker-bg);
+            padding: 2px 10px;
+            color: var(--cyber-green);
+            font-size: 0.7em;
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 2px;
+        }
+    </style>
+</head>
+<body>
+    <h1>ðŸ¦· FINGERBITE</h1>
+    
+    <div class="console-note">
+        <strong>SYSTEM ALERT:</strong> Open DevTools console (F12) to monitor FingerBite detection output in real-time.
+    </div>
+
+    <div class="test-section">
+        <h2>âœ… TEST 1: LEGITIMATE CANVAS USE</h2>
+        <div class="test-description">
+            Creates a visible canvas, draws a simple chart, displays it to user.
+            <strong>Expected Result:</strong> 🟢 Unlikely to be fingerprinting
+            <strong>Expected Score:</strong> 0 (wasInDOM=true, wasVisible=true, slow extraction, many draw ops)
+        </div>
+        <button onclick="test1_LegitimateCanvas()">EXECUTE TEST 1</button>
+        <div id="test1-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>ðŸš¨ TEST 2: HIDDEN CANVAS FINGERPRINTING</h2>
+        <div class="test-description">
+            Creates an invisible canvas, renders text, extracts data immediately, never displays it.
+            <strong>Expected Result:</strong> 🔴 LIKELY FINGERPRINTING DETECTED
+            <strong>Expected Score:</strong> ≥10 (NEVER_IN_DOM=5, NEVER_VISIBLE=4, QUICK_EXTRACT=3, FEW_DRAW_OPS=2 = 14)
+        </div>
+        <button class="danger" onclick="test2_HiddenFingerprint()">EXECUTE TEST 2</button>
+        <div id="test2-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>ðŸŽ¨ TEST 3: OFF-SCREEN IMAGE PROCESSING</h2>
+        <div class="test-description">
+            Creates hidden canvas for legitimate image processing - many operations, delayed extraction.
+            <strong>Expected Result:</strong> 🟠  Possible fingerprinting detected
+            <strong>Expected Score:</strong> 7-9 (NEVER_IN_DOM=5, NEVER_VISIBLE=4, but many draw ops and slow extraction)
+            <em>Note: Demonstrates limitation - off-screen processing triggers detection but is legitimate</em>
+        </div>
+        <button onclick="test3_OffScreenProcessing()">EXECUTE TEST 3</button>
+        <div id="test3-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>ðŸ"¤ TEST 4: SUSPICIOUS TEXT PATTERNS</h2>
+        <div class="test-description">
+            Uses common fingerprinting test strings like "Cwm fjordbank glyphs vext quiz"
+            <strong>Expected Result:</strong> 🔴 LIKELY FINGERPRINTING DETECTED
+            <strong>Expected Score:</strong> ≥10 (NEVER_IN_DOM=5, NEVER_VISIBLE=4, QUICK_EXTRACT=3, FEW_DRAW_OPS=2, CONTAINS_SUS_TEXT=3 = 17)
+        </div>
+        <button class="danger" onclick="test4_SuspiciousText()">EXECUTE TEST 4</button>
+        <div id="test4-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>ðŸŽ­ TEST 5: NO CONTEXT EXTRACTION</h2>
+        <div class="test-description">
+            Creates canvas and calls toDataURL() without ever calling getContext() - reads system defaults.
+            <strong>Expected Result:</strong> 🔴 LIKELY FINGERPRINTING DETECTED
+            <strong>Expected Score:</strong> ≥10 (NO_CONTEXT=5, NEVER_IN_DOM=5, NEVER_VISIBLE=4, QUICK_EXTRACT=3, FEW_DRAW_OPS=2 = 19)
+        </div>
+        <button class="danger" onclick="test5_NoContext()">EXECUTE TEST 5</button>
+        <div id="test5-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>ðŸŒ TEST 6: NETWORK TRANSMISSION</h2>
+        <div class="test-description">
+            Extracts canvas and sends data via fetch() to known tracker (google-analytics.com).
+            <strong>Expected Result:</strong> 🔴 LIKELY FINGERPRINTING DETECTED
+            <strong>Expected Score:</strong> 19 (base 14 + KNOWN_TRACKER=5)
+            <em>Note: Network tracking and correlation fully implemented!</em>
+        </div>
+        <button class="danger" onclick="test6_NetworkTransmission()">EXECUTE TEST 6</button>
+        <div id="test6-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>ðŸ"„ TEST 7: MULTIPLE EXTRACTIONS</h2>
+        <div class="test-description">
+            Extracts the same canvas 3 times at 100ms intervals (simulating repeated fingerprinting).
+            <strong>Expected Result:</strong> 🔴 LIKELY (1st) then ðŸŸ  Possible (2nd, 3rd)
+            <strong>Expected Scores:</strong> 1st=14 (quick), 2nd=11 (slow), 3rd=11 (slow)
+        </div>
+        <button class="warning" onclick="test7_MultipleExtractions()">EXECUTE TEST 7</button>
+        <div id="test7-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>ðŸ'€ TEST 8: FULL FINGERPRINTING ATTACK</h2>
+        <div class="test-description">
+            Combines all suspicious behaviors: hidden canvas + suspicious text + quick extraction + network to 3 trackers.
+            <strong>Expected Result:</strong> 🔴 LIKELY FINGERPRINTING DETECTED
+            <strong>Expected Score:</strong> 22 (base 17 + KNOWN_TRACKER=5)
+        </div>
+        <button class="danger" onclick="test8_FullAttack()">EXECUTE TEST 8</button>
+        <div id="test8-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>ðŸ'¾ TEST 9: LEGITIMATE SAVE FEATURE</h2>
+        <div class="test-description">
+            Creates visible canvas with chart, user clicks "save" button to download as image.
+            <strong>Expected Result:</strong> 🟢 Unlikely to be fingerprinting
+            <strong>Expected Score:</strong> 0 (wasInDOM=true, wasVisible=true, many draw ops, slow extraction)
+        </div>
+        <button onclick="test9_LegitSave()">SHOW CANVAS</button>
+        <button onclick="test9_SaveCanvas()" style="display:none;" id="save-btn">SAVE IMAGE</button>
+        <div id="test9-result"></div>
+    </div>
+
+    <script>
+        function test1_LegitimateCanvas() {
+            console.log('\n=== TEST 1: Legitimate Canvas Use ===');
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = 400;
+            canvas.height = 200;
+            canvas.style.border = '2px solid #00ff41';
+            
+            document.getElementById('test1-result').innerHTML = '';
+            document.getElementById('test1-result').appendChild(canvas);
+            
+            const ctx = canvas.getContext('2d');
+            
+            ctx.fillStyle = '#00ff41';
+            ctx.fillRect(50, 150, 60, -100);
+            ctx.fillRect(130, 150, 60, -80);
+            ctx.fillRect(210, 150, 60, -120);
+            ctx.fillRect(290, 150, 60, -60);
+            
+            ctx.fillStyle = '#00d9ff';
+            ctx.font = '14px Share Tech Mono';
+            ctx.fillText('Q1', 65, 170);
+            ctx.fillText('Q2', 145, 170);
+            ctx.fillText('Q3', 225, 170);
+            ctx.fillText('Q4', 305, 170);
+            
+            setTimeout(() => {
+                const data = canvas.toDataURL();
+                document.getElementById('test1-result').innerHTML += 
+                    '<div class="result">âœ… Chart rendered and displayed. Check console for detection results.</div>';
+            }, 500);
+        }
+
+        function test2_HiddenFingerprint() {
+            console.log('\n=== TEST 2: Hidden Canvas Fingerprinting ===');
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = 200;
+            canvas.height = 50;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.fillText('fingerprint', 10, 20);
+            
+            const data = canvas.toDataURL();
+            
+            document.getElementById('test2-result').innerHTML = 
+                '<div class="result">ðŸš¨ Hidden canvas fingerprinting executed. Check console!</div>';
+        }
+
+        function test3_OffScreenProcessing() {
+            console.log('\n=== TEST 3: Off-Screen Image Processing ===');
+
+            const canvas = document.createElement('canvas');
+            canvas.width = 500;
+            canvas.height = 500;
+
+            const ctx = canvas.getContext('2d');
+
+            for (let i = 0; i < 20; i++) {
+                ctx.fillStyle = `rgb(${i * 10}, ${255 - i * 10}, ${i * 5})`;
+                ctx.fillRect(i * 20, i * 20, 60, 60);
+            }
+
+            ctx.strokeStyle = '#ff0000';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < 10; i++) {
+                ctx.strokeRect(i * 40, i * 40, 100, 100);
+            }
+
+            setTimeout(() => {
+                const imageData = ctx.getImageData(0, 0, 500, 500);
+                
+                for (let i = 0; i < imageData.data.length; i += 4) {
+                    const avg = (imageData.data[i] + imageData.data[i+1] + imageData.data[i+2]) / 3;
+                    imageData.data[i] = avg;
+                    imageData.data[i+1] = avg;
+                    imageData.data[i+2] = avg;
+                }
+                ctx.putImageData(imageData, 0, 0);
+
+                document.getElementById('test3-result').innerHTML =
+                    '<div class="result">ðŸŽ¨ Off-screen canvas with 30+ draw ops + delayed getImageData(). Check console!</div>';
+            }, 150);
+        }
+
+        function test4_SuspiciousText() {
+            console.log('\n=== TEST 4: Suspicious Text Patterns ===');
+            
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            ctx.fillText('Cwm fjordbank glyphs vext quiz', 10, 20);
+            ctx.fillText('mmmmmmmmmmlli', 10, 40);
+            
+            const data = canvas.toDataURL();
+            
+            document.getElementById('test4-result').innerHTML = 
+                '<div class="result">ðŸ"¤ Fingerprinting text patterns used. Check console!</div>';
+        }
+
+        function test5_NoContext() {
+            console.log('\n=== TEST 5: No Context Extraction ===');
+            
+            const canvas = document.createElement('canvas');
+            const data = canvas.toDataURL();
+            
+            document.getElementById('test5-result').innerHTML = 
+                '<div class="result">ðŸŽ­ Canvas extracted without context. Check console!</div>';
+        }
+
+        function test6_NetworkTransmission() {
+            console.log('\n=== TEST 6: Network Transmission ===');
+            
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.fillText('tracking', 10, 20);
+            
+            const data = canvas.toDataURL();
+            
+            fetch('https://google-analytics.com/collect', {
+                method: 'POST',
+                body: JSON.stringify({ fingerprint: data }),
+            }).catch(() => {});
+            
+            document.getElementById('test6-result').innerHTML = 
+                '<div class="result">ðŸŒ Canvas data sent to network (simulated). Check console!</div>';
+        }
+
+        function test7_MultipleExtractions() {
+            console.log('\n=== TEST 7: Multiple Extractions ===');
+            
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.fillText('test', 10, 20);
+            
+            const data1 = canvas.toDataURL();
+            setTimeout(() => {
+                const data2 = canvas.toDataURL();
+                setTimeout(() => {
+                    const data3 = canvas.toDataURL();
+                    document.getElementById('test7-result').innerHTML = 
+                        '<div class="result">ðŸ"„ Canvas extracted 3 times. Check console!</div>';
+                }, 100);
+            }, 100);
+        }
+
+        function test8_FullAttack() {
+            console.log('\n=== TEST 8: Full Fingerprinting Attack ===');
+            
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            ctx.fillText('Cwm fjordbank glyphs vext quiz', 10, 20);
+            
+            const data = canvas.toDataURL();
+            
+            fetch('https://google-analytics.com/collect', {
+                method: 'POST',
+                body: JSON.stringify({ fp: data }),
+            }).catch(() => {});
+            
+            fetch('https://facebook.com/track', {
+                method: 'POST',
+                body: JSON.stringify({ fp: data }),
+            }).catch(() => {});
+            
+            fetch('https://mixpanel.com/track', {
+                method: 'POST',
+                body: JSON.stringify({ fp: data }),
+            }).catch(() => {});
+            
+            document.getElementById('test8-result').innerHTML = 
+                '<div class="result">ðŸ\'€ Full attack executed (hidden + suspicious text + quick + network to 3 trackers). Check console!</div>';
+        }
+
+        let test9Canvas = null;
+        
+        function test9_LegitSave() {
+            console.log('\n=== TEST 9: Legitimate Save Feature ===');
+            
+            test9Canvas = document.createElement('canvas');
+            test9Canvas.width = 400;
+            test9Canvas.height = 200;
+            test9Canvas.style.border = '2px solid #00d9ff';
+            
+            const ctx = test9Canvas.getContext('2d');
+            
+            const gradient = ctx.createLinearGradient(0, 0, 400, 200);
+            gradient.addColorStop(0, '#00ff41');
+            gradient.addColorStop(1, '#00d9ff');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 400, 200);
+            
+            ctx.fillStyle = '#0a0e27';
+            ctx.font = 'bold 24px Orbitron';
+            ctx.fillText('FINGERBITE CHART', 80, 100);
+            
+            document.getElementById('test9-result').innerHTML = '';
+            document.getElementById('test9-result').appendChild(test9Canvas);
+            document.getElementById('save-btn').style.display = 'inline-block';
+        }
+        
+        function test9_SaveCanvas() {
+            if (test9Canvas) {
+                const data = test9Canvas.toDataURL('image/png');
+                
+                const link = document.createElement('a');
+                link.download = 'fingerbite-chart.png';
+                link.href = data;
+                link.click();
+                
+                document.getElementById('test9-result').innerHTML += 
+                    '<div class="result">ðŸ\'¾ Image downloaded. Check console - should show low suspicion!</div>';
+            }
+        }
+
+        console.log('%cðŸ¦· FINGERBITE TEST SUITE LOADED', 'font-size: 20px; color: #00ff41; font-weight: bold; font-family: Orbitron;');
+        console.log('%cExecute tests above. Monitor this console for real-time detection output!', 'font-size: 14px; color: #00d9ff;');
+    </script>
+</body>
+</html>
